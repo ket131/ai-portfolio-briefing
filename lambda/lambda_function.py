@@ -14,7 +14,7 @@ import requests
 import os
 from datetime import datetime, timezone, timedelta # Added to support historical changes.
 from decimal import Decimal
-import weave  # ← ADD THIS LINE
+# import weave  # ← ADD THIS LINE -> removed on 12/2/2025 due to incomplete integration - package size limit hit
 
 # Initialize AWS clients
 secrets_client = boto3.client('secretsmanager', region_name='us-east-1')
@@ -501,7 +501,7 @@ def fetch_news_for_holdings(holdings, api_key, max_holdings=5):
             continue
     
     return news_items
-@weave.op()  # ← ADD THIS DECORATOR
+# @weave.op()  # ← ADD THIS DECORATOR -> removed on 12/2/2025 due to incomplete integration - package size limit hit
 def generate_briefing_with_claude(portfolio_data, news_items, api_key):
     """Generate AI-powered briefing using Claude API"""
     
@@ -823,7 +823,7 @@ def lambda_handler(event, context):
        - Send briefing email
     """
      # Initialize Weave tracking
-    weave.init('kpatel4-aiportfolio')
+    # weave.init('kpatel4-aiportfolio') -> removed on 12/2/2025 due to incomplete integration - package size limit hit
     
     print("Starting portfolio briefing generation...")
 
