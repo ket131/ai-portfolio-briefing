@@ -205,3 +205,44 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# Portfolio-specific ignores
+.env
+.env.backup
+*.csv
+*.log
+execution_log.csv
+portfolio_history.csv
+
+# Archive folder (don't push old files)
+archive/
+
+# Deployment artifacts
+*.zip
+lambda_deployment/
+lambda_layer/
+lambda_package/
+
+# Test files
+test_*.py
+debug_*.py
+*_test.py
+check_*.py
+
+# Meeting notes and personal docs
+*.txt
+daily_reflections*
+AI PM showcase plan*
+AI PORTFOLIO BRIEFING*
+Plaid Meeting*
+
+# Batch files
+*.bat
+
+# VS Code
+.vscode/
+
+# Python virtual environment
+venv/
+```
+
+**Save the file!**
