@@ -12,14 +12,17 @@ import json
 import boto3
 import requests
 import os
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, To, Content
 from datetime import datetime, timezone, timedelta # Added to support historical changes.
 from decimal import Decimal
 # import weave  # ← ADD THIS LINE -> removed on 12/2/2025 due to incomplete integration - package size limit hit
 
+
 # Initialize AWS clients
 secrets_client = boto3.client('secretsmanager', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-ses_client = boto3.client('ses', region_name='us-east-1')
+# ses_client = boto3.client('ses', region_name='us-east-1') -> 12/3/2025 revmoving in favor of using SendGrid for sending briefing emails reliably.
 
 # DynamoDB tables
 users_table = dynamodb.Table('portfolio-users')
@@ -772,41 +775,77 @@ Questions? Reply to this email.
     
     return text
 
+# commenting out the old send_briefing_email using SES and adding new fuction that uses SendGrid for sending email - 12/3/2025
+
+# def send_briefing_email(user_email, html_body, text_body):
+   #  """Send briefing email via SES"""
+    
+   #  sender = "kbp131@gmail.com"  # Your verified SES sender
+   #  subject = f"📊 Your Portfolio Briefing - {datetime.now().strftime('%b %d, %Y')}"
+    
+   #  try:
+     #    response = ses_client.send_email(
+       #      Source=sender,
+         #    Destination={
+           #      'ToAddresses': [user_email]
+            # },
+            # Message={
+              #   'Subject': {
+                #     'Data': subject,
+                #     'Charset': 'UTF-8'
+                # },
+                # 'Body': {
+                #     'Text': {
+                #         'Data': text_body,
+                #         'Charset': 'UTF-8'
+                #     },
+                #     'Html': {
+                #         'Data': html_body,
+                #         'Charset': 'UTF-8'
+                #     }
+               #  }
+            # }
+        # )
+        # print(f"Briefing sent to {user_email}: {response['MessageId']}")
+        # return True
+        
+    # except Exception as e:
+      #   print(f"Error sending email to {user_email}: {str(e)}")
+      #   return False
+
+# new send_briefing_email function using SendGrid - 12/3/2025
 def send_briefing_email(user_email, html_body, text_body):
-    """Send briefing email via SES"""
-    
-    sender = "kbp131@gmail.com"  # Your verified SES sender
-    subject = f"📊 Your Portfolio Briefing - {datetime.now().strftime('%b %d, %Y')}"
-    
+    """Send briefing email via SendGrid"""
     try:
-        response = ses_client.send_email(
-            Source=sender,
-            Destination={
-                'ToAddresses': [user_email]
-            },
-            Message={
-                'Subject': {
-                    'Data': subject,
-                    'Charset': 'UTF-8'
-                },
-                'Body': {
-                    'Text': {
-                        'Data': text_body,
-                        'Charset': 'UTF-8'
-                    },
-                    'Html': {
-                        'Data': html_body,
-                        'Charset': 'UTF-8'
-                    }
-                }
-            }
+        # Get SendGrid API key from environment variable
+        sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
+        
+        if not sendgrid_api_key:
+            logger.error("SENDGRID_API_KEY environment variable not set")
+            raise ValueError("SendGrid API key not configured")
+        
+        # Get subject line
+        subject = f"Your Portfolio Briefing - {datetime.now().strftime('%b %d, %Y')}"
+        
+        # Create SendGrid message with both HTML and plain text
+        message = Mail(
+            from_email=Email('kbp131@gmail.com'),
+            to_emails=To(user_email),
+            subject=subject
         )
-        print(f"Briefing sent to {user_email}: {response['MessageId']}")
-        return True
+        message.add_content(Content("text/plain", text_body))  # Plain text version
+        message.add_content(Content("text/html", html_body))   # HTML version
+        
+        # Send via SendGrid
+        sg = SendGridAPIClient(sendgrid_api_key)
+        response = sg.send(message)
+        
+        logger.info(f"Email sent via SendGrid to {user_email}: status={response.status_code}")
+        return response
         
     except Exception as e:
-        print(f"Error sending email to {user_email}: {str(e)}")
-        return False
+        logger.error(f"Failed to send email via SendGrid: {str(e)}")
+        raise
 
 def lambda_handler(event, context):
     """
