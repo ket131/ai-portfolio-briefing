@@ -135,6 +135,147 @@ Clean, responsive HTML emails delivered daily:
 **Delivery:** 7:00 AM CT daily via SendGrid
 
 ---
+## 🚀 CI/CD Pipeline
+
+This project uses GitHub Actions for automated deployment to AWS Lambda.
+
+### How It Works
+
+1. **Make changes** to code in `lambda/` folder
+2. **Commit and push** to `main` branch
+3. **GitHub Actions automatically:**
+   - Installs dependencies (anthropic, plaid-python)
+   - Creates deployment package
+   - Deploys to AWS Lambda
+4. **Deployment completes** in ~30 seconds
+
+### Making Changes
+```bash
+# Edit lambda/lambda_function.py or other files in lambda/
+vim lambda/lambda_function.py
+
+# Commit and push
+git add lambda/lambda_function.py
+git commit -m "Update portfolio briefing logic"
+git push origin main
+
+# GitHub Actions deploys automatically!
+# Check progress: https://github.com/ket131/ai-portfolio-briefing/actions
+```
+
+### Workflow Details
+
+**Workflow file:** `.github/workflows/deploy.yml`
+
+**Triggers on:**
+- Push to `main` branch
+- Only when files in `lambda/` folder change
+
+**Steps:**
+1. Checkout code
+2. Set up Python 3.11
+3. Install dependencies (anthropic, plaid-python only - boto3/requests in Lambda runtime)
+4. Create deployment zip
+5. Deploy to `portfolio-worker` Lambda function
+
+**Why exclude boto3 and requests?**
+- Already available in Lambda Python 3.11 runtime
+- Reduces deployment package size
+- Avoids 262MB Lambda limit
+
+### AWS Configuration
+
+**IAM User:** `github-actions-lambda`
+**Policy:** `AWSLambda_FullAccess`
+**Secrets (in GitHub repository settings):**
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+
+### Troubleshooting
+
+**Workflow not triggering?**
+- Check that files in `lambda/` folder changed
+- Workflow only triggers on `lambda/**` path changes
+
+**Deployment fails with size error?**
+- Ensure only anthropic and plaid-python are installed
+- boto3 and requests should NOT be in deployment package
+
+**Credentials error?**
+- Verify secrets are set in GitHub: Settings → Secrets → Actions
+- Check IAM user has AWSLambda_FullAccess policy
+
+**View deployment logs:**
+- Go to: https://github.com/ket131/ai-portfolio-briefing/actions
+- Click on latest workflow run
+- Click on "deploy" job to see detailed logs
+
+### Manual Deployment (If Needed)
+
+If GitHub Actions is unavailable, you can deploy manually:
+```bash
+cd lambda
+pip install anthropic plaid-python -t .
+zip -r ../deployment.zip .
+aws lambda update-function-code --function-name portfolio-worker --zip-file fileb://../deployment.zip
+```
+
+---
+
+## 📊 Monitoring & Logs
+
+**CloudWatch Logs:**
+- Log group: `/aws/lambda/portfolio-worker`
+- View execution logs, errors, and performance metrics
+
+**Email delivery verification:**
+- Daily briefing at 7:00 AM CT
+- Check Gmail inbox (kbp131@gmail.com)
+- Email sent via Amazon SES
+
+---
+
+## 🔧 Development Workflow
+
+### Local Development
+
+1. **Edit code locally** in `lambda/` folder
+2. **Test logic** (Lambda execution happens in AWS)
+3. **Commit changes** with descriptive message
+4. **Push to GitHub** - deployment happens automatically
+
+### Production Updates
+
+**Zero-downtime deployment:**
+- Lambda updates happen atomically
+- EventBridge schedule (daily 7 AM) continues running
+- No manual intervention needed
+
+**Rollback if needed:**
+```bash
+# View previous commits
+git log
+
+# Revert to previous version
+git revert HEAD
+git push origin main
+
+# GitHub Actions deploys previous version automatically
+```
+
+---
+
+## 📅 Deployment History
+
+**Dec 4, 2025:** CI/CD pipeline established with GitHub Actions
+
+**Key improvements:**
+- Automated deployment (no manual copy-paste)
+- 30-second deployment time
+- Deployment package size optimized (<100MB)
+- Professional version control workflow
+
+---
 
 ## 🏗️ Architecture
 
