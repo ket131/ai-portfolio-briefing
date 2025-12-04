@@ -12,8 +12,8 @@ import json
 import boto3
 import requests
 import os
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Email, To, Content
+# from sendgrid import SendGridAPIClient
+# from sendgrid.helpers.mail import Mail, Email, To, Content
 from datetime import datetime, timezone, timedelta # Added to support historical changes.
 from decimal import Decimal
 # import weave  # ← ADD THIS LINE -> removed on 12/2/2025 due to incomplete integration - package size limit hit
@@ -22,7 +22,7 @@ from decimal import Decimal
 # Initialize AWS clients
 secrets_client = boto3.client('secretsmanager', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-# ses_client = boto3.client('ses', region_name='us-east-1') -> 12/3/2025 revmoving in favor of using SendGrid for sending briefing emails reliably.
+ses_client = boto3.client('ses', region_name='us-east-1')
 
 # DynamoDB tables
 users_table = dynamodb.Table('portfolio-users')
@@ -775,44 +775,44 @@ Questions? Reply to this email.
     
     return text
 
-# commenting out the old send_briefing_email using SES and adding new fuction that uses SendGrid for sending email - 12/3/2025
+# reverting t0 the old send_briefing_email using SES and removing new fuction that uses SendGrid for sending email - 12/3/2025
 
-# def send_briefing_email(user_email, html_body, text_body):
-   #  """Send briefing email via SES"""
+def send_briefing_email(user_email, html_body, text_body):
+     """Send briefing email via SES"""
     
-   #  sender = "kbp131@gmail.com"  # Your verified SES sender
-   #  subject = f"📊 Your Portfolio Briefing - {datetime.now().strftime('%b %d, %Y')}"
+     sender = "kbp131@gmail.com"  # Your verified SES sender
+     subject = f"📊 Your Portfolio Briefing - {datetime.now().strftime('%b %d, %Y')}"
     
-   #  try:
-     #    response = ses_client.send_email(
-       #      Source=sender,
-         #    Destination={
-           #      'ToAddresses': [user_email]
-            # },
-            # Message={
-              #   'Subject': {
-                #     'Data': subject,
-                #     'Charset': 'UTF-8'
-                # },
-                # 'Body': {
-                #     'Text': {
-                #         'Data': text_body,
-                #         'Charset': 'UTF-8'
-                #     },
-                #     'Html': {
-                #         'Data': html_body,
-                #         'Charset': 'UTF-8'
-                #     }
-               #  }
-            # }
-        # )
-        # print(f"Briefing sent to {user_email}: {response['MessageId']}")
-        # return True
+     try:
+         response = ses_client.send_email(
+             Source=sender,
+             Destination={
+                 'ToAddresses': [user_email]
+             },
+             Message={
+                 'Subject': {
+                     'Data': subject,
+                     'Charset': 'UTF-8'
+                 },
+                 'Body': {
+                     'Text': {
+                         'Data': text_body,
+                         'Charset': 'UTF-8'
+                     },
+                     'Html': {
+                         'Data': html_body,
+                         'Charset': 'UTF-8'
+                     }
+                 }
+             }
+         )
+         print(f"Briefing sent to {user_email}: {response['MessageId']}")
+         return True
         
-    # except Exception as e:
-      #   print(f"Error sending email to {user_email}: {str(e)}")
-      #   return False
-
+     except Exception as e:
+         print(f"Error sending email to {user_email}: {str(e)}")
+         return False
+'''
 # new send_briefing_email function using SendGrid - 12/3/2025
 def send_briefing_email(user_email, html_body, text_body):
     """Send briefing email via SendGrid"""
@@ -846,7 +846,7 @@ def send_briefing_email(user_email, html_body, text_body):
     except Exception as e:
         logger.error(f"Failed to send email via SendGrid: {str(e)}")
         raise
-
+'''
 def lambda_handler(event, context):
     """
     Main Lambda handler for portfolio worker
