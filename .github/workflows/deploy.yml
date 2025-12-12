@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd lambda
-          pip install -r requirements.txt -t .
+          pip install anthropic plaid-python -t .
       
       - name: Create deployment package
         run: |
