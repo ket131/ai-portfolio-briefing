@@ -7,6 +7,7 @@ Process: Fetch portfolio → Get news → AI analysis → Send email
 # Last Updated: 2024-11-10
 # Uses Plaid for data fetching, sends daily briefings via SES
 # CI/CD Test v2 - Deployed automatically via GitHub Actions on Dec 4, 2025
+# Langfuse observability integration - Dec 11, 2025
 """
 import json
 import boto3
