@@ -23,8 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd lambda
-          # Install only anthropic and plaid-python (boto3 and requests already in Lambda runtime)
-          pip install anthropic plaid-python -t .
+          pip install -r requirements.txt -t .
       
       - name: Create deployment package
         run: |
