@@ -7,7 +7,14 @@ Process: Fetch portfolio → Get news → AI analysis → Send email
 # Last Updated: 2024-11-10
 # Uses Plaid for data fetching, sends daily briefings via SES
 # CI/CD Test v2 - Deployed automatically via GitHub Actions on Dec 4, 2025
-# Langfuse observability integration - Dec 11, 2025
+# from langfuse import Langfuse  # ← COMMENTED OUT - package too large
+
+# Initialize Langfuse observability - commented out (284MB > 250MB limit)
+# langfuse = Langfuse(
+#     public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
+#     secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
+#     host="https://us.cloud.langfuse.com"
+# )
 """
 import json
 import boto3
@@ -22,11 +29,11 @@ from decimal import Decimal
 # import weave  # ← removed on 12/2/2025 due to incomplete integration - package size limit hit
 
 # Initialize Langfuse observability
-langfuse = Langfuse(
-    public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
-    host="https://cloud.langfuse.com"
-)
+#langfuse = Langfuse(
+ #   public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
+  #  secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
+   # host="https://us.cloud.langfuse.com"
+#)
 
 # Initialize AWS clients
 secrets_client = boto3.client('secretsmanager', region_name='us-east-1')
@@ -871,16 +878,16 @@ def lambda_handler(event, context):
        - Send briefing email
     """
     
-    # Create Langfuse trace for this run
-    trace = langfuse.trace(
-        name="portfolio_daily_briefing",
-        user_id="ketan",
-        tags=["production", "daily"],
-        metadata={
-            "trigger": event.get("source", "eventbridge"),
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }   
-    )
+    # Langfuse observability - commented out due to package size (284MB > 250MB limit)
+    # trace = langfuse.trace(
+    #     name="portfolio_daily_briefing",
+    #     user_id="ketan",
+    #     tags=["production", "daily"],
+    #     metadata={
+    #         "trigger": event.get("source", "eventbridge"),
+    #         "timestamp": datetime.now(timezone.utc).isoformat()
+    #     }   
+    # )
     
     print("Starting portfolio briefing generation...")
     print(f"Portfolio worker started at {datetime.now(timezone.utc).isoformat()}")
@@ -895,10 +902,10 @@ def lambda_handler(event, context):
         
         if not users:
             print("No active users found")
-            trace.update(
-                output={"status": "success", "message": "No active users"},
-                metadata={"completed": True}
-            )
+            # trace.update(
+            #     output={"status": "success", "message": "No active users"},
+            #     metadata={"completed": True}
+            # )
             return {
                 'statusCode': 200,
                 'body': json.dumps({'message': 'No active users'})
@@ -1010,15 +1017,14 @@ def lambda_handler(event, context):
         successful = sum(1 for r in results if r.get('success'))
         print(f"Completed: {successful}/{len(results)} briefings sent successfully")
         
-        # Log success to Langfuse
-        trace.update(
-            output={
-                "status": "success",
-                "users_processed": len(results),
-                "successful": successful
-            },
-            metadata={"completed": True}
-        )
+        # trace.update(
+        #     output={
+        #         "status": "success",
+        #         "users_processed": len(results),
+        #         "successful": successful
+        #     },
+        #     metadata={"completed": True}
+        # )
         
         return {
             'statusCode': 200,
@@ -1034,11 +1040,10 @@ def lambda_handler(event, context):
         import traceback
         traceback.print_exc()
         
-        # Log error to Langfuse
-        trace.update(
-            output={"status": "error", "error": str(e)},
-            metadata={"completed": False}
-        )
+        # trace.update(
+        #     output={"status": "error", "error": str(e)},
+        #     metadata={"completed": False}
+        # )
         
         return {
             'statusCode': 500,
@@ -1048,6 +1053,5 @@ def lambda_handler(event, context):
             })
         }
     
-    finally:
-        # Ensure Langfuse sends the data
-        langfuse.flush()
+    # finally:
+    #     langfuse.flush()
