@@ -15,7 +15,7 @@ import requests
 import os
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
-from langfuse import Langfuse  # ← ADD THIS LINE
+# from langfuse import Langfuse  # ← removing due to failed beause of package size 284MB
 
 # from sendgrid import SendGridAPIClient
 # from sendgrid.helpers.mail import Mail, Email, To, Content
