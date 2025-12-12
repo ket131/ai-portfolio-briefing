@@ -59,11 +59,12 @@ class PortfolioLogger:
             holdings_count: Number of holdings
             total_value: Total portfolio value
         """
-        logger.info(f"[PORTFOLIO_FETCH] {json.dumps({
+        data = {
             'run_id': self.run_id,
             'holdings_count': holdings_count,
             'total_value': total_value
-        })}")
+        }
+        logger.info(f"[PORTFOLIO_FETCH] {json.dumps(data)}")
         
         self.metrics['portfolio'] = {
             'holdings_count': holdings_count,
@@ -77,10 +78,11 @@ class PortfolioLogger:
         Args:
             articles_count: Number of articles fetched
         """
-        logger.info(f"[NEWS_FETCH] {json.dumps({
+        data = {
             'run_id': self.run_id,
             'articles_count': articles_count
-        })}")
+        }
+        logger.info(f"[NEWS_FETCH] {json.dumps(data)}")
         
         self.metrics['news'] = {
             'articles_count': articles_count
@@ -104,12 +106,13 @@ class PortfolioLogger:
         if estimated_cost is None:
             estimated_cost = (estimated_tokens / 1_000_000) * 9.0
         
-        logger.info(f"[AI_ANALYSIS] {json.dumps({
-            'run_id': self.run_id,
-            'analysis_length': analysis_length,
-            'estimated_tokens': estimated_tokens,
-            'estimated_cost': estimated_cost
-        })}")
+        data = {
+              'run_id': self.run_id,
+                'analysis_length': analysis_length,
+                'estimated_tokens': estimated_tokens,
+                'estimated_cost': estimated_cost
+        }
+        logger.info(f"[AI_ANALYSIS] {json.dumps(data)}")
         
         self.metrics['ai_analysis'] = {
             'analysis_length': analysis_length,
@@ -131,13 +134,14 @@ class PortfolioLogger:
             removed: Number of removed positions
             changed: Number of changed positions
         """
-        logger.info(f"[PORTFOLIO_CHANGES] {json.dumps({
+        data = {
             'run_id': self.run_id,
             'has_changes': has_changes,
             'added': added,
             'removed': removed,
             'changed': changed
-        })}")
+        }
+        logger.info(f"[PORTFOLIO_CHANGES] {json.dumps(data)}")
         
         self.metrics['portfolio_changes'] = {
             'has_changes': has_changes,
@@ -185,14 +189,16 @@ class PortfolioLogger:
         duration_seconds = (end - start).total_seconds()
         self.metrics['duration_seconds'] = duration_seconds
         
-        logger.info(f"[BRIEFING_SUCCESS] {json.dumps({
+        success_data = {
             'run_id': self.run_id,
             'user': self.user_email,
             'duration_seconds': duration_seconds,
             'total_tokens': self.metrics['total_tokens'],
             'total_cost': self.metrics['total_cost'],
             'email_sent': email_sent
-        })}")
+        }
+
+        logger.info(f"[BRIEFING_SUCCESS] {json.dumps(success_data)}")
     
     def log_summary(self):
         """
@@ -218,11 +224,13 @@ def log_lambda_start(event: Dict[str, Any]):
     Args:
         event: Lambda event data
     """
-    logger.info(f"[LAMBDA_START] {json.dumps({
+    start_data = {
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'trigger': event.get('source', 'unknown'),
         'event_type': event.get('detail-type', 'unknown')
-    })}")
+    }
+
+    logger.info(f"[LAMBDA_START] {json.dumps(start_data)}")
 
 
 def log_lambda_complete(user_count: int, successful: int, failed: int, duration_seconds: float):
@@ -235,14 +243,15 @@ def log_lambda_complete(user_count: int, successful: int, failed: int, duration_
         failed: Failed to process
         duration_seconds: Total execution time
     """
-    logger.info(f"[LAMBDA_COMPLETE] {json.dumps({
+    complete_data = {
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'user_count': user_count,
         'successful': successful,
         'failed': failed,
         'duration_seconds': duration_seconds,
         'success_rate': (successful / user_count * 100) if user_count > 0 else 0
-    })}")
+    }
+    logger.info(f"[LAMBDA_COMPLETE] {json.dumps(complete_data)}")
 
 
 # Example CloudWatch Insights queries for analyzing logs:
