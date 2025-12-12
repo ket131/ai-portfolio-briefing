@@ -8,17 +8,24 @@ Process: Fetch portfolio → Get news → AI analysis → Send email
 # Uses Plaid for data fetching, sends daily briefings via SES
 # CI/CD Test v2 - Deployed automatically via GitHub Actions on Dec 4, 2025
 """
-
 import json
 import boto3
 import requests
 import os
+from datetime import datetime, timezone, timedelta
+from decimal import Decimal
+from langfuse import Langfuse  # ← ADD THIS LINE
+
 # from sendgrid import SendGridAPIClient
 # from sendgrid.helpers.mail import Mail, Email, To, Content
-from datetime import datetime, timezone, timedelta # Added to support historical changes.
-from decimal import Decimal
-# import weave  # ← ADD THIS LINE -> removed on 12/2/2025 due to incomplete integration - package size limit hit
+# import weave  # ← removed on 12/2/2025 due to incomplete integration - package size limit hit
 
+# Initialize Langfuse observability
+langfuse = Langfuse(
+    public_key=os.environ.get("LANGFUSE_PUBLIC_KEY"),
+    secret_key=os.environ.get("LANGFUSE_SECRET_KEY"),
+    host="https://cloud.langfuse.com"
+)
 
 # Initialize AWS clients
 secrets_client = boto3.client('secretsmanager', region_name='us-east-1')
@@ -862,11 +869,19 @@ def lambda_handler(event, context):
        - Generate AI analysis
        - Send briefing email
     """
-     # Initialize Weave tracking
-    # weave.init('kpatel4-aiportfolio') -> removed on 12/2/2025 due to incomplete integration - package size limit hit
+    
+    # Create Langfuse trace for this run
+    trace = langfuse.trace(
+        name="portfolio_daily_briefing",
+        user_id="ketan",
+        tags=["production", "daily"],
+        metadata={
+            "trigger": event.get("source", "eventbridge"),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }   
+    )
     
     print("Starting portfolio briefing generation...")
-
     print(f"Portfolio worker started at {datetime.now(timezone.utc).isoformat()}")
     
     try:
@@ -879,6 +894,10 @@ def lambda_handler(event, context):
         
         if not users:
             print("No active users found")
+            trace.update(
+                output={"status": "success", "message": "No active users"},
+                metadata={"completed": True}
+            )
             return {
                 'statusCode': 200,
                 'body': json.dumps({'message': 'No active users'})
@@ -944,9 +963,6 @@ def lambda_handler(event, context):
                 
                 # Fetch news for top holdings
                 print(f"Fetching news for top holdings")
-
-                # Fetch news for top holdings
-                print(f"Fetching news for top holdings")
                 news_items = fetch_news_for_holdings(
                     portfolio_data['holdings'],
                     secrets['alpha_vantage_key']
@@ -993,6 +1009,16 @@ def lambda_handler(event, context):
         successful = sum(1 for r in results if r.get('success'))
         print(f"Completed: {successful}/{len(results)} briefings sent successfully")
         
+        # Log success to Langfuse
+        trace.update(
+            output={
+                "status": "success",
+                "users_processed": len(results),
+                "successful": successful
+            },
+            metadata={"completed": True}
+        )
+        
         return {
             'statusCode': 200,
             'body': json.dumps({
@@ -1007,6 +1033,12 @@ def lambda_handler(event, context):
         import traceback
         traceback.print_exc()
         
+        # Log error to Langfuse
+        trace.update(
+            output={"status": "error", "error": str(e)},
+            metadata={"completed": False}
+        )
+        
         return {
             'statusCode': 500,
             'body': json.dumps({
@@ -1014,3 +1046,7 @@ def lambda_handler(event, context):
                 'message': str(e)
             })
         }
+    
+    finally:
+        # Ensure Langfuse sends the data
+        langfuse.flush()
