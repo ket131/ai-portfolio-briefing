@@ -22,6 +22,9 @@ import requests
 import os
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
+from portfolio_logger import PortfolioLogger, log_lambda_start, log_lambda_complete
+# from datetime import datetime, timezone  # Make sure this is imported -> already have it
+import time  # Add this if not already imported
 # from langfuse import Langfuse  # ← removing due to failed beause of package size 284MB
 
 # from sendgrid import SendGridAPIClient
@@ -888,7 +891,10 @@ def lambda_handler(event, context):
     #         "timestamp": datetime.now(timezone.utc).isoformat()
     #     }   
     # )
-    
+    # Log Lambda start
+    lambda_start_time = time.time()
+    log_lambda_start(event)
+
     print("Starting portfolio briefing generation...")
     print(f"Portfolio worker started at {datetime.now(timezone.utc).isoformat()}")
     
@@ -917,6 +923,9 @@ def lambda_handler(event, context):
         for user in users:
             user_id = user['userId']
             user_email = user['email']
+
+            # Initialize logger for this user
+            briefing_logger = PortfolioLogger(user_email)
             
             print(f"Processing briefing for {user_email}")
             
@@ -938,7 +947,12 @@ def lambda_handler(event, context):
                 )
                 
                 print(f"Portfolio fetched: {len(portfolio_data['holdings'])} holdings, ${portfolio_data['total_value']:,.2f}")
-                
+
+                # LOG IT!
+                briefing_logger.log_portfolio_fetch(
+                    holdings_count=len(portfolio_data['holdings']),
+                    total_value=portfolio_data['total_value']
+                )
                 # ===== PORTFOLIO CHANGE DETECTION START =====
                 
                 # Get yesterday's portfolio for comparison
@@ -959,7 +973,14 @@ def lambda_handler(event, context):
                     print(f"   - Changed: {portfolio_changes['summary']['changed_count']}")
                 else:
                     print(f"ℹ️ No portfolio changes detected")
-                
+                # LOG IT!
+                if not portfolio_changes['is_first_run']:
+                    briefing_logger.log_portfolio_changes(
+                        has_changes=portfolio_changes['has_changes'],
+                        added=portfolio_changes['summary'].get('added_count', 0),
+                        removed=portfolio_changes['summary'].get('removed_count', 0),
+                        changed=portfolio_changes['summary'].get('changed_count', 0)
+                    )
                 # Store today's snapshot for tomorrow's comparison
                 print(f"Storing today's portfolio snapshot")
                 snapshot_stored = store_portfolio_snapshot(user_id, portfolio_data)
@@ -977,6 +998,9 @@ def lambda_handler(event, context):
                 )
                 
                 print(f"News fetched: {len(news_items)} articles")
+
+                # LOG IT!
+                briefing_logger.log_news_fetch(articles_count=len(news_items))
                 
                 # Generate AI analysis
                 print(f"Generating AI analysis")
@@ -987,6 +1011,9 @@ def lambda_handler(event, context):
                 )
                 
                 print(f"Analysis generated: {len(analysis)} characters")
+
+                # LOG IT!
+                briefing_logger.log_ai_analysis(analysis_length=len(analysis))
                 
                 # Format emails
                 html_body = format_email_html(user_email, portfolio_data, news_items, analysis, portfolio_changes)
@@ -994,6 +1021,10 @@ def lambda_handler(event, context):
                 
                 # Send email
                 success = send_briefing_email(user_email, html_body, text_body)
+
+                # LOG SUCCESS!
+                briefing_logger.log_success(email_sent=success)
+                briefing_logger.log_summary()  # Log final summary
                 
                 results.append({
                     'user': user_email,
@@ -1006,6 +1037,14 @@ def lambda_handler(event, context):
                 print(f"Error processing {user_email}: {str(e)}")
                 import traceback
                 traceback.print_exc()
+
+                # LOG ERROR!
+                briefing_logger.log_error(
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    component='briefing_generation'
+                )
+                briefing_logger.log_summary()  # Log summary even on error
                 
                 results.append({
                     'user': user_email,
@@ -1016,6 +1055,15 @@ def lambda_handler(event, context):
         # Summary
         successful = sum(1 for r in results if r.get('success'))
         print(f"Completed: {successful}/{len(results)} briefings sent successfully")
+
+        # Log Lambda completion
+        lambda_duration = time.time() - lambda_start_time
+        log_lambda_complete(
+            user_count=len(results),
+            successful=successful,
+            failed=len(results) - successful,
+            duration_seconds=lambda_duration
+        )
         
         # trace.update(
         #     output={
