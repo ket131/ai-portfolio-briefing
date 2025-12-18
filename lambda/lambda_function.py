@@ -19,6 +19,7 @@ Process: Fetch portfolio → Get news → AI analysis → Send email
 import json
 import boto3
 import requests
+# from anthropic import Anthropic -> SDK not ready the way we intended to use it.
 import os
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -526,6 +527,31 @@ def fetch_news_for_holdings(holdings, api_key, max_holdings=5):
 # @weave.op()  # ← ADD THIS DECORATOR -> removed on 12/2/2025 due to incomplete integration - package size limit hit
 def generate_briefing_with_claude(portfolio_data, news_items, api_key):
     """Generate AI-powered briefing using Claude API with MCP support"""
+    """
+    Generate AI-powered briefing using Claude API with MCP support
+    
+    VERSION HISTORY - MCP Integration Journey:
+    
+    v1.0 (Dec 17, 2025 - Night):
+    - Initial MCP integration using requests.post()
+    - Feature flag: MCP_ENABLED with graceful fallback
+    - Local tests: All passed (5/5)
+    
+    v2.0 (Dec 18, 2025 - 10:00 AM):
+    - Attempted: Switch to Anthropic SDK for mcp_servers support
+    - Result: SDK doesn't support mcp_servers parameter yet
+    - Error: "Messages.create() got an unexpected keyword argument 'mcp_servers'"
+    - Learning: SDK support for MCP not yet released
+    
+    v2.1 (Dec 18, 2025 - 10:15 AM - CURRENT):
+    - Reverted to requests.post() approach
+    - Added detailed error logging to debug 400 Bad Request
+    - Hypothesis: mcp_servers parameter might need different formatting or API version
+    - Next: Deploy and inspect actual API error response
+    - Status: Testing in production to get real error details
+    
+    TODO: Once 400 error is resolved, this will be the production MCP implementation
+    """
     
     if not api_key:
         return generate_basic_briefing(portfolio_data, news_items)
@@ -537,6 +563,7 @@ def generate_briefing_with_claude(portfolio_data, news_items, api_key):
     mcp_servers = None
     if mcp_enabled:
         try:
+            from mcp_config import get_mcp_servers
             mcp_servers = get_mcp_servers()
             print(f"✅ MCP enabled: {len(mcp_servers)} server(s) configured")
         except Exception as e:
@@ -593,9 +620,14 @@ def generate_briefing_with_claude(portfolio_data, news_items, api_key):
         
     except Exception as e:
         print(f"❌ Error calling Claude API: {str(e)}")
+        # Print response body for debugging if available
+        if hasattr(e, 'response') and e.response is not None:
+            try:
+                error_detail = e.response.json()
+                print(f"   API Error Detail: {error_detail}")
+            except:
+                print(f"   Response Text: {e.response.text}")
         return generate_basic_briefing(portfolio_data, news_items)
-
-
 def build_agentic_prompt(portfolio_data, tickers):
     """Build autonomous prompt - Claude decides what data to fetch"""
     
