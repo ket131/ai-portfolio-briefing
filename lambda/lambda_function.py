@@ -26,7 +26,7 @@ from portfolio_logger import PortfolioLogger, log_lambda_start, log_lambda_compl
 # from datetime import datetime, timezone  # Make sure this is imported -> already have it
 import time  # Add this if not already imported
 # from langfuse import Langfuse  # ← removing due to failed beause of package size 284MB
-
+from mcp_config import get_mcp_servers  # NEW import
 # from sendgrid import SendGridAPIClient
 # from sendgrid.helpers.mail import Mail, Email, To, Content
 # import weave  # ← removed on 12/2/2025 due to incomplete integration - package size limit hit
@@ -525,47 +525,35 @@ def fetch_news_for_holdings(holdings, api_key, max_holdings=5):
     return news_items
 # @weave.op()  # ← ADD THIS DECORATOR -> removed on 12/2/2025 due to incomplete integration - package size limit hit
 def generate_briefing_with_claude(portfolio_data, news_items, api_key):
-    """Generate AI-powered briefing using Claude API"""
+    """Generate AI-powered briefing using Claude API with MCP support"""
     
     if not api_key:
         return generate_basic_briefing(portfolio_data, news_items)
     
-    # Prepare portfolio summary
-    holdings_summary = []
-    for holding in portfolio_data['holdings'][:10]:  # Top 10
-        holdings_summary.append(
-            f"• {holding['ticker']} ({holding['name']}): "
-            f"{holding['quantity']:.2f} shares @ ${holding['price']:.2f} = ${holding['value']:,.2f}"
-        )
+    # Check if MCP is enabled via feature flag
+    mcp_enabled = os.environ.get('MCP_ENABLED', 'false').lower() == 'true'
     
-    # Prepare news summary
-    news_summary = []
-    for item in news_items[:5]:  # Top 5 news items
-        news_summary.append(
-            f"• [{item['ticker']}] {item['title']} ({item['sentiment']})"
-        )
+    # Try to configure MCP servers
+    mcp_servers = None
+    if mcp_enabled:
+        try:
+            mcp_servers = get_mcp_servers()
+            print(f"✅ MCP enabled: {len(mcp_servers)} server(s) configured")
+        except Exception as e:
+            print(f"⚠️ MCP configuration failed: {e}")
+            print(f"   Falling back to passive analysis with pre-fetched news")
+            # mcp_servers stays None - system continues with news_items
     
-    # Create prompt for Claude
-    prompt = f"""You are a financial analyst creating a daily portfolio briefing. Analyze the following portfolio and news, then provide insights.
-
-PORTFOLIO SUMMARY:
-Total Value: ${portfolio_data['total_value']:,.2f}
-Number of Holdings: {len(portfolio_data['holdings'])}
-
-TOP HOLDINGS:
-{chr(10).join(holdings_summary)}
-
-RECENT NEWS:
-{chr(10).join(news_summary) if news_summary else 'No recent news available'}
-
-Please provide a brief, actionable portfolio briefing with:
-1. Portfolio Overview (2-3 sentences about the portfolio composition)
-2. Key Movements (any notable changes based on news sentiment)
-3. Market Context (what's happening in the broader market)
-4. Actionable Insights (1-2 specific recommendations)
-
-Keep it concise, professional, and actionable. Total length: ~200 words."""
-
+    # Build prompt based on MCP availability
+    if mcp_servers:
+        # AGENTIC PROMPT: Claude decides what to fetch
+        tickers = [h['ticker'] for h in portfolio_data['holdings']]
+        prompt = build_agentic_prompt(portfolio_data, tickers)
+    else:
+        # PASSIVE PROMPT: Use pre-fetched news (current behavior)
+        prompt = build_passive_prompt(portfolio_data, news_items)
+    
+    # Call Claude API (with or without MCP)
     try:
         url = "https://api.anthropic.com/v1/messages"
         
@@ -586,16 +574,120 @@ Keep it concise, professional, and actionable. Total length: ~200 words."""
             ]
         }
         
+        # Add MCP servers if available
+        if mcp_servers:
+            payload['mcp_servers'] = mcp_servers
+            print(f"🔧 MCP tools enabled for Claude")
+        
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
         data = response.json()
         
         analysis = data['content'][0]['text']
+        
+        # Log which mode was used
+        mode = "MCP-enabled (autonomous)" if mcp_servers else "Pre-fetched news (passive)"
+        print(f"📊 Claude analysis complete ({mode}): {len(analysis)} chars")
+        
         return analysis
         
     except Exception as e:
-        print(f"Error calling Claude API: {str(e)}")
+        print(f"❌ Error calling Claude API: {str(e)}")
         return generate_basic_briefing(portfolio_data, news_items)
+
+
+def build_agentic_prompt(portfolio_data, tickers):
+    """Build autonomous prompt - Claude decides what data to fetch"""
+    
+    holdings_summary = []
+    for holding in portfolio_data['holdings'][:10]:
+        holdings_summary.append(
+            f"• {holding['ticker']} ({holding['name']}): "
+            f"{holding['quantity']:.2f} shares @ ${holding['price']:.2f} = ${holding['value']:,.2f}"
+        )
+    
+    return f"""You are an autonomous financial analyst with access to real-time market data via Alpha Vantage MCP tools.
+
+PORTFOLIO SUMMARY:
+Total Value: ${portfolio_data['total_value']:,.2f}
+Number of Holdings: {len(portfolio_data['holdings'])}
+
+TOP HOLDINGS:
+{chr(10).join(holdings_summary)}
+
+TICKERS IN PORTFOLIO: {', '.join(tickers)}
+
+AVAILABLE MCP TOOLS (Alpha Vantage):
+- NEWS_SENTIMENT: Fetch news and sentiment for any ticker
+- GLOBAL_QUOTE: Get current price and volume data
+- TOP_GAINERS_LOSERS: Market-wide movers and context
+- TIME_SERIES_DAILY: Historical price data
+- EARNINGS_CALENDAR: Upcoming earnings
+- And 200+ more financial data tools
+
+TASK:
+Generate a comprehensive daily portfolio briefing.
+
+BE AUTONOMOUS:
+1. Analyze the portfolio context (what changed, what's significant)
+2. Decide which data you need (don't fetch everything - be strategic)
+3. Use MCP tools to fetch relevant information
+4. Synthesize insights from the data you gathered
+5. Provide actionable recommendations
+
+DECISION FRAMEWORK:
+- If a holding changed significantly → Fetch news to understand why
+- If a holding is stable → Quick quote check may suffice  
+- If market is volatile → Fetch broader market context
+- If earnings season → Get earnings calendar data
+- Focus on TOP holdings by value (they matter most)
+
+OUTPUT FORMAT:
+Provide a brief, actionable briefing with:
+1. Portfolio Overview (2-3 sentences about composition)
+2. Key Movements (notable changes based on fetched data)
+3. Market Context (what's happening in broader market)
+4. Actionable Insights (1-2 specific recommendations)
+
+Keep it concise, professional, actionable. Total length: ~200 words.
+"""
+
+
+def build_passive_prompt(portfolio_data, news_items):
+    """Build passive prompt - analyze pre-fetched data (current behavior)"""
+    
+    holdings_summary = []
+    for holding in portfolio_data['holdings'][:10]:
+        holdings_summary.append(
+            f"• {holding['ticker']} ({holding['name']}): "
+            f"{holding['quantity']:.2f} shares @ ${holding['price']:.2f} = ${holding['value']:,.2f}"
+        )
+    
+    news_summary = []
+    for item in news_items[:5]:
+        news_summary.append(
+            f"• [{item['ticker']}] {item['title']} ({item['sentiment']})"
+        )
+    
+    return f"""You are a financial analyst creating a daily portfolio briefing. Analyze the following portfolio and news, then provide insights.
+
+PORTFOLIO SUMMARY:
+Total Value: ${portfolio_data['total_value']:,.2f}
+Number of Holdings: {len(portfolio_data['holdings'])}
+
+TOP HOLDINGS:
+{chr(10).join(holdings_summary)}
+
+RECENT NEWS:
+{chr(10).join(news_summary) if news_summary else 'No recent news available'}
+
+Please provide a brief, actionable portfolio briefing with:
+1. Portfolio Overview (2-3 sentences about the portfolio composition)
+2. Key Movements (any notable changes based on news sentiment)
+3. Market Context (what's happening in the broader market)
+4. Actionable Insights (1-2 specific recommendations)
+
+Keep it concise, professional, and actionable. Total length: ~200 words."""
 
 def generate_basic_briefing(portfolio_data, news_items):
     """Generate basic briefing without AI (fallback)"""

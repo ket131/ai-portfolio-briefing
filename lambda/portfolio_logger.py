@@ -258,25 +258,25 @@ def log_lambda_complete(user_count: int, successful: int, failed: int, duration_
 """
 # Find all errors in last 24 hours:
 fields @timestamp, @message
-| filter @message like /\[ERROR\]/
+| filter @message like /\\[ERROR\\]/
 | sort @timestamp desc
 | limit 100
 
 # Calculate average cost per briefing:
 fields @timestamp, @message
-| filter @message like /\[BRIEFING_SUCCESS\]/
+| filter @message like /\\[BRIEFING_SUCCESS\\]/
 | parse @message '{"total_cost": *,' as total_cost
 | stats avg(total_cost) as avg_cost, sum(total_cost) as total_cost
 
 # Track portfolio changes:
 fields @timestamp, @message
-| filter @message like /\[PORTFOLIO_CHANGES\]/
+| filter @message like /\\[PORTFOLIO_CHANGES\\]/
 | parse @message '{"has_changes": *,' as has_changes
 | stats count() by has_changes
 
 # Monitor success rate:
 fields @timestamp, @message
-| filter @message like /\[LAMBDA_COMPLETE\]/
+| filter @message like /\\[LAMBDA_COMPLETE\\]/
 | parse @message '{"success_rate": *,' as success_rate
 | stats avg(success_rate) as avg_success_rate
 """
