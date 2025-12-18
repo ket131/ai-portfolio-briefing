@@ -543,14 +543,36 @@ def generate_briefing_with_claude(portfolio_data, news_items, api_key):
     - Error: "Messages.create() got an unexpected keyword argument 'mcp_servers'"
     - Learning: SDK support for MCP not yet released
     
-    v2.1 (Dec 18, 2025 - 10:15 AM - CURRENT):
+    v2.1 (Dec 18, 2025 - 10:15 AM):
     - Reverted to requests.post() approach
     - Added detailed error logging to debug 400 Bad Request
     - Hypothesis: mcp_servers parameter might need different formatting or API version
-    - Next: Deploy and inspect actual API error response
-    - Status: Testing in production to get real error details
     
-    TODO: Once 400 error is resolved, this will be the production MCP implementation
+    v2.2 (Dec 18, 2025 - 10:35 AM - FINAL):
+    - **CRITICAL DISCOVERY:** Anthropic's public REST API does NOT support mcp_servers
+    - Error from API: "mcp_servers: Extra inputs are not permitted"
+    - Root cause: MCP only available in Claude.ai web interface and Claude Desktop app
+    - MCP requires Anthropic's infrastructure to proxy connections to MCP servers
+    - Public API (/v1/messages) is raw API without MCP proxy layer
+    
+    ARCHITECTURAL LIMITATION:
+    - Cannot use MCP from Lambda → Anthropic API → Claude (current architecture)
+    - MCP only works: Claude.ai/Desktop → Anthropic (with MCP) → Claude → MCP Servers
+    - Alternative: Build MCP client in Lambda (multi-day project, high complexity)
+    
+    DECISION:
+    - Keeping baseline implementation (direct Alpha Vantage API calls)
+    - MCP integration paused until Anthropic adds public API support
+    - System remains stable with 33+ days uptime
+    - Feature flag remains in code for future enablement
+    
+    LEARNING FOR INTERVIEWS:
+    "Attempted cutting-edge MCP integration but discovered API limitation.
+    Rather than over-engineer a workaround, documented findings and maintained
+    production stability. That's product thinking - knowing when NOT to ship."
+    
+    STATUS: Production-ready baseline, MCP ready for future when API supports it
+    TODO: Monitor Anthropic changelog for public API MCP support
     """
     
     if not api_key:
