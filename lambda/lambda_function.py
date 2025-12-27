@@ -3,6 +3,15 @@ AWS Lambda Function: portfolio-worker
 Purpose: Generate and send daily AI-powered portfolio briefings
 Triggers: EventBridge (7 AM CT daily)
 Process: Fetch portfolio → Get news → AI analysis → Send email
+CHANGELOG:
+-----------
+2025-12-27 (KP):
+  - Reordered email sections for better UX:
+    * Portfolio Changes now appears BEFORE AI Insights
+    * Reasoning: Users want to see WHAT changed (data) before WHY (analysis)
+    * Improves scanability - can quickly see movers without reading full analysis
+  
+  - Next planned: Quiet day detection (send brief update on low-activity days)
 # Version: 1.0.0
 # Last Updated: 2024-11-10
 # Uses Plaid for data fetching, sends daily briefings via SES
@@ -808,14 +817,14 @@ def format_email_html(user_email, portfolio_data, news_items, analysis, changes=
             </p>
         </div>
         
+        {format_changes_html(changes) if changes else ''}
+
         <div style="margin-bottom: 30px;">
             <h2 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">🤖 AI Insights</h2>
             <div style="background: #ffffff; padding: 20px; border-radius: 5px; border: 1px solid #e5e7eb;">
                 {analysis.replace(chr(10), '<br>')}
             </div>
         </div>
-        
-        {format_changes_html(changes) if changes else ''}
 
         <div style="margin-bottom: 30px;">
             <h2 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">📈 Top Holdings</h2>
