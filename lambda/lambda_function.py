@@ -102,22 +102,31 @@ def store_portfolio_snapshot(user_id: str, portfolio_data: dict) -> bool:
 
 
 def get_previous_portfolio(user_id: str, days_ago: int = 1):
-    """Retrieve portfolio from N days ago"""
+    """Retrieve portfolio from N days ago (skips weekends automatically)"""
     try:
-        # history_table = dynamodb.Table('portfolio-history') - ADDED under dynamoDB tables above
-        target_date = (datetime.now(timezone.utc) - timedelta(days=days_ago)).strftime('%Y-%m-%d')
+        # Calculate target date, skipping weekends
+        current_date = datetime.now(timezone.utc).date()
+        target_date = current_date - timedelta(days=days_ago)
+        
+        # If target falls on weekend, go back to Friday
+        if target_date.weekday() == 6:  # Sunday
+            target_date = target_date - timedelta(days=2)  # Go to Friday
+        elif target_date.weekday() == 5:  # Saturday
+            target_date = target_date - timedelta(days=1)  # Go to Friday
+        
+        target_date_str = target_date.strftime('%Y-%m-%d')
         
         response = history_table.get_item(
             Key={
                 'userId': user_id,
-                'date': target_date
+                'date': target_date_str
             }
         )
         
         item = response.get('Item')
         
         if not item:
-            print(f"ℹ️ No portfolio snapshot found for {user_id} on {target_date}")
+            print(f"ℹ️ No portfolio snapshot found for {user_id} on {target_date_str}")
             return None
         
         # Convert Decimal back to float
@@ -141,7 +150,6 @@ def get_previous_portfolio(user_id: str, days_ago: int = 1):
     except Exception as e:
         print(f"❌ Error retrieving previous portfolio: {str(e)}")
         return None
-
 
 def detect_portfolio_changes(today_portfolio: dict, yesterday_portfolio) -> dict:
     """Compare today's portfolio with yesterday's and detect changes"""
